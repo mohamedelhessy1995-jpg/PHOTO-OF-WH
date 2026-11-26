@@ -1,27 +1,6 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><title>تصوير المخازن</title>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>تصوير المخازن</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./apple-touch-icon.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="تصوير المخازن">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0f2d44">
-</head><body>
-<script>
-/* outside Claude: provide the same "downloads" API using a normal browser download (not available on iOS, where the app falls back to its image view / share buttons) */
-(function(){
-  if(window.claude&&window.claude.use)return;
-  var ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  window.claude={use:function(n){
-    if(n!=='downloads'||ios)return Promise.resolve(null);
-    return Promise.resolve({save:function(o){
-      var u=URL.createObjectURL(o.data),a=document.createElement('a');a.href=u;a.download=o.filename;a.style.display='none';document.body.appendChild(a);a.click();
-      setTimeout(function(){try{a.remove();URL.revokeObjectURL(u);}catch(e){}},60000);return Promise.resolve();
-    }});
-  }};
-})();
-</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -260,7 +239,7 @@ input[type=text],input[type=number]{width:100%;min-width:0;min-height:46px;paddi
 (function(){
   var $=function(id){return document.getElementById(id)};
   var F="'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif";
-  function newRow(o){var r={cargo:'',client:'',factory:'',vessel:'',qty:'',imgs:[],vids:[],sel:0,auto:false,manual:false,gone:false};if(o)for(var k in o)r[k]=o[k];return r}
+  function newRow(o){var r={cargo:'',client:'',factory:'',vessel:'',qty:'',imgs:[],vids:[],sel:0,auto:false,manual:true,gone:false};if(o)for(var k in o)r[k]=o[k];if(o&&o.auto&&o.manual===undefined)r.manual=false;return r}
   var state={merge:{},img:null,stores:[],arch:[],sel:{},prepared:null,autoKey:null,active:0,pending:null,vidTarget:0,pdf:null,allImgs:[],allVids:[],vidFile:null,allSel:0,allMode:false,allPick:true,feed:null,rows:[newRow()]};
   var tabEls=[];
   function syncImg(){
@@ -984,6 +963,13 @@ input[type=text],input[type=number]{width:100%;min-width:0;min-height:46px;paddi
     if(res.cap==null&&fb.cap!=null){res.cap=fb.cap;usedFb=true}
     if(res.area==null&&fb.area!=null){res.area=fb.area;usedFb=true}
     if(force||state.autoKey!==res.key){
+      /* moving from one store of the sheet to another: the old store's lines must not stay and add their quantities to the new store */
+      var carried=false;
+      if(!force&&state.autoKey!=null&&state.autoKey!==res.key){
+        var sentOk=state.rows.every(function(r){return !rowMedia(r)||r.sent})&&(!(state.allImgs.length+state.allVids.length)||state.rows.some(function(r){return r.sent}));
+        if(sentOk){state.rows=[newRow()];state.allImgs=[];state.allVids=[];state.allSel=0;state.allMode=false;state.merge={};state.active=0}
+        else{state.rows.forEach(function(r){r.manual=false});carried=true}
+      }
       if(res.qty!=null)$('qty').value=r3(res.qty);
       if(res.cap!=null)$('cap').value=r3(res.cap);
       var am=lsGet('areas.v1',{})[areaKey()];$('area').value=res.area!=null?r3(res.area):(am!=null&&am!==''?am:'');
@@ -1000,7 +986,7 @@ input[type=text],input[type=number]{width:100%;min-width:0;min-height:46px;paddi
       state.autoKey=res.key;
     }
     var msg=res.items.length?('تم جلب '+res.items.length+' بند من الملف ('+res.label+'). تقدر تضيف نوع تاني بزرار +.'):('المخزن في الملف ('+res.label+') لكن البضاعة والعميل غير مسجلين. اختر من القائمة.');
-    setHint(msg+(usedFb?' الاستيعاب والمساحة من آخر ملف سليم (الملف الحالي عنده روابط مكسورة #REF!).':''),'ok');
+    setHint((carried?'تنبيه: في صور من المخزن السابق لسه متبعتتش وفضلت على الشاشة، ابعتها أو انقلها للمحفوظ قبل مخزن جديد. ':'')+msg+(usedFb?' الاستيعاب والمساحة من آخر ملف سليم (الملف الحالي عنده روابط مكسورة #REF!).':''),'ok');
   }
 
   /* cargo/client names to pick from: everything in the file plus recent entries */
@@ -1426,17 +1412,4 @@ input[type=text],input[type=number]{width:100%;min-width:0;min-height:46px;paddi
 })();
 </script>
 
-<div id="installTip" hidden style="position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9999;background:#0f2d44;color:#fff;border-radius:12px;padding:12px 14px;font:14px/1.6 Tahoma,Arial,sans-serif;direction:rtl;box-shadow:0 6px 24px #0006">لتثبيت الأداة على موبايلك: اضغط زر المشاركة في Safari ثم «إضافة إلى الشاشة الرئيسية»، وافتحها بعد كده من الأيقونة.<button type="button" id="installTipClose" style="margin-inline-start:10px;min-height:32px;padding:0 12px">تم</button></div>
-<script>
-(function(){
-  try{
-    var ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-    var standalone=window.navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);
-    var tip=document.getElementById('installTip');
-    if(ios&&!standalone&&!localStorage.getItem('wh-tip-done'))tip.hidden=false;
-    document.getElementById('installTipClose').addEventListener('click',function(){tip.hidden=true;try{localStorage.setItem('wh-tip-done','1');}catch(e){}});
-  }catch(e){}
-  if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
-})();
-</script>
 </body></html>
